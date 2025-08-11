@@ -1,0 +1,25 @@
+## Interface: 110200
+## Title: GoldReaper
+## Author: Clint Seewald (CS&A-Software)
+## Version: 0.0.90 Beta
+## Notes: Tracks your total kills, coin, and item vendor value per farming spot, helping you uncover the most lucrative raw gold locations.
+## DefaultState: enabled
+## IconTexture: Interface\Icons\inv_misc_bone_humanskull_02
+## OptionalDeps: LibStub, CallbackHandler-1.0, LibDataBroker-1.1, LibDBIcon-1.0
+## SavedVariables: GoldReaperDB
+
+# Libraries
+Libs/LibStub/LibStub.lua
+Libs/CallbackHandler-1.0/CallbackHandler-1.0.lua
+Libs/LibDataBroker-1.1/LibDataBroker-1.1.lua
+Libs/LibDBIcon-1.0/LibDBIcon-1.0.lua
+
+# Addon Files - Load order is critical
+CentralHub.lua
+DataTracker.lua
+NotificationManager.lua
+MainWindow.lua
+DeleteCodexButton.lua
+Popups.lua
+Pictures.lua
+MiniMapIcon.lua
