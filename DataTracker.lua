@@ -31,7 +31,6 @@ end
 function DataTracker:OnNamePlateUnitAdded(unitId)
     if not unitId or watchedNameplates[unitId] then return end
     
-    -- FIX: Added 'not UnitIsPlayer(unitId)' to exclude players from being tracked.
     if UnitCanAttack("player", unitId) and not UnitIsPlayer(unitId) then
         watchedNameplates[unitId] = true
     end
@@ -89,38 +88,51 @@ function DataTracker:OnLootOpened(isFromItem)
     -- Start a new session.
     currentLootSession = {
         coin = 0,
-        lootValue = 0
+        lootValue = 0,
+        tsmValues = nil
     }
     
-    -- Calculate total value of items in the loot window immediately.
-    local totalValue = 0
+    local totalVendorValue = 0
+    local tsmValues = {}
+
     for i = 1, GetNumLootItems() do
         local itemLink = GetLootSlotLink(i)
         if itemLink then
+            local _, _, quantity = GetLootSlotInfo(i)
+            quantity = quantity or 1
+            
             local _, _, _, _, _, _, _, _, _, _, sellPrice = GetItemInfo(itemLink)
             if sellPrice and sellPrice > 0 then
-                local _, _, quantity = GetLootSlotInfo(i)
-                if quantity and quantity > 0 then
-                    totalValue = totalValue + (sellPrice * quantity)
+                totalVendorValue = totalVendorValue + (sellPrice * quantity)
+            end
+
+            if addon.tsmIsAvailable then
+                -- FIX: Extract item ID and convert to TSM format
+                local itemId = itemLink:match("item:(%d+)")
+                if itemId then
+                    local tsmItemString = "i:" .. itemId
+                    local dbRegionSaleAvg = addon:GetTSMItemValue(tsmItemString, "DBRegionSaleAvg")
+                    if dbRegionSaleAvg and dbRegionSaleAvg > 0 then
+                        tsmValues.DBRegionSaleAvg = (tsmValues.DBRegionSaleAvg or 0) + (dbRegionSaleAvg * quantity)
+                    end
                 end
             end
         end
     end
-    currentLootSession.lootValue = totalValue
+    currentLootSession.lootValue = totalVendorValue
+    if next(tsmValues) then
+        currentLootSession.tsmValues = tsmValues
+    end
 end
 
 -- When money is looted, add it to our session total.
 function DataTracker:OnMoneyLooted(message)
     local targetSession = pendingLootSession or currentLootSession
     
-    -- If no session exists, it's a "late" money message that arrived after
-    -- the loot window closed and its processing timer already fired.
-    -- We create a new pending session to catch this coin and schedule it.
     if not targetSession then
         pendingLootSession = { coin = 0, lootValue = 0 }
         targetSession = pendingLootSession
         
-        -- Schedule this new session to be processed after a short delay.
         if lootProcessTimer then lootProcessTimer:Cancel() end
         lootProcessTimer = C_Timer.After(0.5, function()
             DataTracker:ProcessPendingLoot()
@@ -128,32 +140,22 @@ function DataTracker:OnMoneyLooted(message)
     end
 
     local totalCopper = 0
-    
-    -- Match gold (handles comma separators)
     local goldMatch = message:match("([%d,]+)%s+[Gg]old")
-    if goldMatch then
-        local goldStr = goldMatch:gsub(",", "")
-        local gold = tonumber(goldStr) or 0
-        totalCopper = totalCopper + (gold * 10000)
+    if goldMatch then 
+        local cleanGold = goldMatch:gsub(",", "")
+        totalCopper = totalCopper + (tonumber(cleanGold) * 10000) 
     end
-    
-    -- Match silver (handles comma separators)  
     local silverMatch = message:match("([%d,]+)%s+[Ss]ilver")
-    if silverMatch then
-        local silverStr = silverMatch:gsub(",", "")
-        local silver = tonumber(silverStr) or 0
-        totalCopper = totalCopper + (silver * 100)
+    if silverMatch then 
+        local cleanSilver = silverMatch:gsub(",", "")
+        totalCopper = totalCopper + (tonumber(cleanSilver) * 100) 
     end
-    
-    -- Match copper (handles comma separators)
     local copperMatch = message:match("([%d,]+)%s+[Cc]opper")
-    if copperMatch then
-        local copperStr = copperMatch:gsub(",", "")
-        local copper = tonumber(copperStr) or 0
-        totalCopper = totalCopper + copper
+    if copperMatch then 
+        local cleanCopper = copperMatch:gsub(",", "")
+        totalCopper = totalCopper + tonumber(cleanCopper) 
     end
 
-    -- Add to whichever session is active
     if totalCopper > 0 then
         targetSession.coin = (targetSession.coin or 0) + totalCopper
     end
@@ -161,26 +163,18 @@ end
 
 -- Modified OnLootClosed - now delays processing to wait for money messages
 function DataTracker:OnLootClosed()
-    -- If there's no active loot session, there's nothing to do.
-    if not currentLootSession then
-        return
-    end
+    if not currentLootSession then return end
     
-    -- Store the session data but don't process it immediately
     pendingLootSession = {
         coin = currentLootSession.coin or 0,
-        lootValue = currentLootSession.lootValue or 0
+        lootValue = currentLootSession.lootValue or 0,
+        tsmValues = currentLootSession.tsmValues
     }
     
-    -- Clear the current session by setting it to nil, indicating no loot window is open.
     currentLootSession = nil
     
-    -- Cancel any existing timer to ensure we use the latest loot data
-    if lootProcessTimer then
-        lootProcessTimer:Cancel()
-    end
+    if lootProcessTimer then lootProcessTimer:Cancel() end
     
-    -- Set a short delay to allow money messages to come in
     lootProcessTimer = C_Timer.After(0.5, function()
         DataTracker:ProcessPendingLoot()
     end)
@@ -188,12 +182,9 @@ end
 
 -- New function to process the pending loot after delay
 function DataTracker:ProcessPendingLoot()
-    if not pendingLootSession then
-        return
-    end
+    if not pendingLootSession then return end
     
-    -- Only process if there was value
-    if pendingLootSession.coin == 0 and pendingLootSession.lootValue == 0 then
+    if pendingLootSession.coin == 0 and pendingLootSession.lootValue == 0 and not pendingLootSession.tsmValues then
         pendingLootSession = nil
         return
     end
@@ -211,13 +202,12 @@ function DataTracker:ProcessPendingLoot()
         zoneKey = uiMapID .. "::" .. zoneName,
         zoneName = zoneName,
         coin = pendingLootSession.coin,
-        lootValue = pendingLootSession.lootValue
+        lootValue = pendingLootSession.lootValue,
+        tsmValues = pendingLootSession.tsmValues
     }
     
-    -- Send the completed data to the CentralHub for processing
     addon:ProcessLootEvent(lootData)
 
-    -- Clear the pending session
     pendingLootSession = nil
     lootProcessTimer = nil
 end

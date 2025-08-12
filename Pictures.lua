@@ -14,8 +14,8 @@ local GR_BACKGROUND_CONFIG = {
     -- Texture path within the addon folder
     texture = "Interface\\AddOns\\GoldReaper\\Media\\GoldReaper.tga",
     -- Dimensions of the image
-    width = 300,
-    height = 406,
+    width = 240,
+    height = 324,
     -- Alpha (transparency), from 0.0 (invisible) to 1.0 (opaque)
     alpha = 1,
     -- Anchor point on the image itself
@@ -32,19 +32,17 @@ local GR_LOGO_CONFIG = {
     texture = "Interface\\AddOns\\GoldReaper\\Media\\GoldReaperLogo.tga",
     width = 80,
     height = 86,
-    -- FIX: Set to OVERLAY to ensure it appears on top of other elements within its parent frame.
     strata = "OVERLAY",
-    level = 1, -- This sub-level is relative to the OVERLAY layer.
+    level = 1,
     alpha = 1.0,
-    anchorPoint = "TOPRIGHT",
-    relativePoint = "TOPRIGHT",
-    -- FIX: Adjusted offsets to position the logo inside the top-right of the sidebar.
-    xOffset = -60,
-    yOffset = -346,
+    -- DIRECTIVE: Anchor logo to the bottom right of the sidebar to prevent overlap with buttons.
+    anchorPoint = "BOTTOMRIGHT",
+    relativePoint = "BOTTOMRIGHT",
+    xOffset = -60, -- Padding from the right edge
+    yOffset = 24,  -- Padding from the bottom edge
 }
 -- === End Configuration ===
 
--- FIX: The function now accepts the main frame and the sidebar frame as arguments.
 function Pictures:CreatePictures(mainFrame, sidebar)
     if not mainFrame or not sidebar then return end
     
@@ -61,7 +59,6 @@ function Pictures:CreatePictures(mainFrame, sidebar)
     bg:SetAlpha(GR_BACKGROUND_CONFIG.alpha)
 
     -- Create GoldReaper Logo Image (Parented to the sidebar)
-    -- FIX: Changed the parent from mainFrame to sidebar to solve the layering problem.
     local logo = sidebar:CreateTexture("GoldReaperLogoTexture", GR_LOGO_CONFIG.strata)
     logo:SetTexture(GR_LOGO_CONFIG.texture)
     logo:SetSize(GR_LOGO_CONFIG.width, GR_LOGO_CONFIG.height)

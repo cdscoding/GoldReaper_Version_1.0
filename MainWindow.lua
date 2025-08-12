@@ -13,6 +13,7 @@ local columnDefinitions = {}
 local sortButtons = {}
 local activeMapPinButton -- Keep track of the active map button
 local customMapPin -- The custom pin for the world map
+local tsmIsAvailable -- This will be set in OnInitialize
 
 local currentSort = { key = "name", order = "asc" }
 local ROW_HEIGHT = 20
@@ -40,19 +41,21 @@ function MainWindow:UpdateDisplay()
         end
 
         if currentSort.order == "asc" then
-            return valA < valB
+            return (valA or 0) < (valB or 0)
         else -- "desc"
-            return valA > valB
+            return (valA or 0) > (valB or 0)
         end
     end)
 
+    local sortButtonIndex = 1
     for i, colDef in ipairs(columnDefinitions) do
-        if sortButtons[i] then
-            local button, buttonText = sortButtons[i], colDef.name
+        if colDef.dataIndex and sortButtons[sortButtonIndex] then
+            local button, buttonText = sortButtons[sortButtonIndex], colDef.name
             if colDef.dataIndex == currentSort.key then
                 buttonText = buttonText .. (currentSort.order == "asc" and " (Asc)" or " (Desc)")
             end
             button:SetText(buttonText)
+            sortButtonIndex = sortButtonIndex + 1
         end
     end
     local searchText = _G["GoldReaperSearchBox"]:GetText():lower()
@@ -85,13 +88,13 @@ function MainWindow:UpdateList(data)
         local bg = row:CreateTexture(nil, "BACKGROUND"); bg:SetAllPoints(true)
         bg:SetColorTexture(i % 2 == 0 and EVEN_ROW_COLOR.r or ODD_ROW_COLOR.r, i % 2 == 0 and EVEN_ROW_COLOR.g or ODD_ROW_COLOR.g, i % 2 == 0 and EVEN_ROW_COLOR.b or ODD_ROW_COLOR.b, i % 2 == 0 and EVEN_ROW_COLOR.a or ODD_ROW_COLOR.a)
 
-        local currentX = 10
+        local currentX = -10
         local nameCell
         for j, col in ipairs(columnDefinitions) do
             if col.dataIndex then -- This is a data cell
                 local text = rowData[col.dataIndex]
                 if col.format == "money" then text = FormatMoney(text) elseif col.format == "number" then text = tostring(text) end
-                local cell = row:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+                local cell = row:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
                 cell:SetTextColor(1, 1, 1)
                 cell:SetPoint("CENTER", row, "LEFT", currentX + (col.width / 2) - 5, 0)
                 cell:SetText(text)
@@ -208,9 +211,9 @@ function MainWindow:ShowDetails(spotData)
             lastLocation = mob.data.lastLocation or "N/A"
         end
 
-        local nameText = row:CreateFontString(nil, "ARTWORK", "GameFontNormal"); nameText:SetPoint("LEFT", 10, 0); nameText:SetText(mob.name)
-        local coordsText = row:CreateFontString(nil, "ARTWORK", "GameFontNormal"); coordsText:SetPoint("LEFT", 220, 0); coordsText:SetText(lastLocation)
-        local killedText = row:CreateFontString(nil, "ARTWORK", "GameFontNormal"); killedText:SetPoint("LEFT", 370, 0); killedText:SetText(tostring(killCount))
+        local nameText = row:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall"); nameText:SetPoint("LEFT", 10, 0); nameText:SetText(mob.name)
+        local coordsText = row:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall"); coordsText:SetPoint("LEFT", 220, 0); coordsText:SetText(lastLocation)
+        local killedText = row:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall"); killedText:SetPoint("LEFT", 370, 0); killedText:SetText(tostring(killCount))
 
         local mapButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate"); mapButton:SetSize(100, 20); mapButton:SetPoint("LEFT", 420, 0); mapButton:SetText("Show on Map")
         mapButton:SetScript("OnClick", function(self)
@@ -246,15 +249,20 @@ function MainWindow:ShowDetails(spotData)
 end
 
 function MainWindow:OnInitialize()
+    -- Use the global flag set in CentralHub, which is now guaranteed to be correct.
+    tsmIsAvailable = addon.tsmIsAvailable
+
+    -- DIRECTIVE: Reduce TSM window width by 168px
+    local windowWidth = tsmIsAvailable and 1282 or 1100
     MainWindow.frame = CreateFrame("Frame", "GoldReaperMainWindow", UIParent, "BasicFrameTemplate")
-    MainWindow.frame.TitleText:SetText("GoldReaper Beta - v0.0.90")
-    -- FIX: Increased main window height by 50 pixels.
-    MainWindow.frame:SetSize(1100, 500); MainWindow.frame:SetPoint("CENTER")
+    MainWindow.frame.TitleText:SetText("GoldReaper - v1.0")
+    -- DIRECTIVE: Reduce window height by 30px
+    MainWindow.frame:SetSize(windowWidth, 570); MainWindow.frame:SetPoint("CENTER")
     MainWindow.frame:SetMovable(true); MainWindow.frame:EnableMouse(true); MainWindow.frame:RegisterForDrag("LeftButton"); MainWindow.frame:SetScript("OnDragStart", MainWindow.frame.StartMoving); MainWindow.frame:SetScript("OnDragStop", MainWindow.frame.StopMovingOrSizing)
     
     local sidebar = CreateFrame("Frame", nil, MainWindow.frame, "BackdropTemplate")
-    -- FIX: Increased sidebar height to match new window height.
-    sidebar:SetSize(200, 450); sidebar:SetPoint("TOPLEFT", 10, -30)
+    -- DIRECTIVE: Reduce sidebar height by 30px
+    sidebar:SetSize(200, 520); sidebar:SetPoint("TOPLEFT", 10, -30)
     sidebar:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Tooltips/UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 16, insets = { left = 4, right = 4, top = 4, bottom = 4 } })
     sidebar:SetBackdropColor(SIDEBAR_BG_COLOR.r, SIDEBAR_BG_COLOR.g, SIDEBAR_BG_COLOR.b, SIDEBAR_BG_COLOR.a); sidebar:SetBackdropBorderColor(SIDEBAR_BORDER_COLOR.r, SIDEBAR_BORDER_COLOR.g, SIDEBAR_BORDER_COLOR.b, SIDEBAR_BORDER_COLOR.a)
 
@@ -263,7 +271,6 @@ function MainWindow:OnInitialize()
     local infoButton = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate"); infoButton:SetSize(180, 25); infoButton:SetPoint("TOPLEFT", searchBox, "BOTTOMLEFT", -5, -5); infoButton:SetText("GoldReaper Info"); infoButton:SetScript("OnClick", function() addon:ToggleInfoWindow() end)
     local supportButton = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate"); supportButton:SetSize(180, 25); supportButton:SetPoint("TOPLEFT", infoButton, "BOTTOMLEFT", 0, -5); supportButton:SetText("Community & Bug Reports"); supportButton:SetScript("OnClick", function() addon:ToggleSupportWindow() end)
     
-    -- New button to toggle minimap icon
     local toggleMinimapButton = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate")
     toggleMinimapButton:SetSize(180, 25)
     toggleMinimapButton:SetPoint("TOPLEFT", supportButton, "BOTTOMLEFT", 0, -5)
@@ -276,18 +283,24 @@ function MainWindow:OnInitialize()
     
     local filtersTitle = sidebar:CreateFontString(nil, "ARTWORK", "GameFontNormalMed2"); filtersTitle:SetPoint("TOPLEFT", deleteCodexButton, "BOTTOMLEFT", 0, -15); filtersTitle:SetText("Sort By")
 
-    -- FIX: Widened columns for currency values.
+    -- Define the columns, adding TSM ones conditionally.
     columnDefinitions = {
-        { name = "Farm Spot",      width = 220, dataIndex = "name",       defaultSort = "asc" },
+        { name = "Farm Spot",      width = 200, dataIndex = "name",       defaultSort = "asc" },
         { name = "Total Kills",    width = 100, dataIndex = "totalKills", defaultSort = "desc", format = "number" },
-        { name = "Coin",           width = 150, dataIndex = "totalCoin",  defaultSort = "desc", format = "money" },
-        { name = "Loot Value",     width = 150, dataIndex = "totalLootValue", defaultSort = "desc", format = "money" },
-        { name = "Total Value",    width = 150, dataIndex = "totalValue", defaultSort = "desc", format = "money" },
-        { name = "Delete",         width = 50,  dataIndex = nil },
+        { name = "Total Coin",     width = 168, dataIndex = "totalCoin",  defaultSort = "desc", format = "money" },
+        { name = "Total Vendor",   width = 168, dataIndex = "totalLootValue", defaultSort = "desc", format = "money" },
+        { name = "Total Coin & Vendor", width = 180, dataIndex = "totalValue", defaultSort = "desc", format = "money" },
     }
+
+    if tsmIsAvailable then
+        -- DIRECTIVE: Rename "TSM-DBRegionSaleAvg" to "DBRegionSaleAvg"
+        table.insert(columnDefinitions, { name = "DBRegionSaleAvg", width = 168, dataIndex = "totalRegionSaleAvg", defaultSort = "desc", format = "money" })
+    end
+
+    table.insert(columnDefinitions, { name = "Delete",         width = 50,  dataIndex = nil })
+
     local lastButton
     for i, colDef in ipairs(columnDefinitions) do
-        -- Only create sort buttons for columns that can be sorted
         if colDef.dataIndex then
             local button = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate")
             button:SetSize(180, 25)
@@ -298,13 +311,13 @@ function MainWindow:OnInitialize()
             end
             button:SetScript("OnClick", function(self) if currentSort.key == colDef.dataIndex then currentSort.order = (currentSort.order == "asc") and "desc" or "asc" else currentSort.key = colDef.dataIndex; currentSort.order = colDef.defaultSort end; MainWindow:UpdateDisplay() end)
             lastButton = button
-            sortButtons[i] = button
+            table.insert(sortButtons, button)
         end
     end
 
     local contentPanel = CreateFrame("Frame", nil, MainWindow.frame); contentPanel:SetPoint("TOPLEFT", sidebar, "TOPRIGHT", 10, 0); contentPanel:SetPoint("BOTTOMRIGHT", MainWindow.frame, "BOTTOMRIGHT", -10, 10)
     local header = CreateFrame("Frame", nil, contentPanel); header:SetSize(0, 25); header:SetPoint("TOPLEFT"); header:SetPoint("TOPRIGHT")
-    local currentX = 10
+    local currentX = -10
     for i, colDef in ipairs(columnDefinitions) do
         local h_text = header:CreateFontString(nil, "ARTWORK", "GameFontNormalMed2"); h_text:SetText(colDef.name); colDef.headerWidget = h_text
         h_text:SetPoint("CENTER", header, "LEFT", currentX + (colDef.width / 2) - 5, 0)
@@ -313,7 +326,7 @@ function MainWindow:OnInitialize()
 
     scrollFrame = CreateFrame("ScrollFrame", "GoldReaperScrollFrame", contentPanel, "UIPanelScrollFrameTemplate"); scrollFrame:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, 0); scrollFrame:SetPoint("BOTTOMRIGHT", contentPanel, "BOTTOMRIGHT", -20, 0)
     
-    local currentX_div = 10
+    local currentX_div = -10
     for i = 1, #columnDefinitions - 1 do
         currentX_div = currentX_div + columnDefinitions[i].width
         local divider = contentPanel:CreateTexture(nil, "ARTWORK")

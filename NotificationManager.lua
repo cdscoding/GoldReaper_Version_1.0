@@ -40,6 +40,11 @@ end
 
 -- Shows the notification with just the reaper image behind the zone text.
 function NotificationManager:ShowZoneNotification(zoneName)
+    -- Check the user's setting before showing the notification.
+    if not GoldReaperDB.settings.showZoneReaper then
+        return
+    end
+
     if not notificationFrame then
         self:CreateNotificationFrame()
     end

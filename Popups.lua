@@ -25,6 +25,43 @@ local function CT(color, text)
     return color .. text .. COLORS.RESET
 end
 
+-- Local helper function to build the dynamic text for the info window.
+local function BuildInfoWindowText()
+    local statusText = GoldReaperDB.settings.showZoneReaper and "|cff00ff00Enabled|r" or "|cffff0000Disabled|r"
+    local textParts = {
+        CT(COLORS.SECTION_TITLE, "Welcome to GoldReaper!") .. "\n",
+        "This addon is a lightweight tool designed to track your farming efficiency by recording kills, coin drops, and the vendor value of looted items for every farm spot you visit.\n\n",
+        CT(COLORS.SECTION_TITLE, "How It Works") .. "\n",
+        "GoldReaper automatically detects when you enter a new subzone and begins tracking your activity. It records:\n",
+        "  • " .. CT(COLORS.HIGHLIGHT, "Kills:") .. " Every time you defeat an enemy.\n",
+        "  • " .. CT(COLORS.HIGHLIGHT, "Coin:") .. " All gold, silver, and copper looted.\n",
+        "  • " .. CT(COLORS.HIGHLIGHT, "Loot Value:") .. " The total vendor sell price of all items you loot.\n\n",
+        CT(COLORS.SECTION_TITLE, "The Main Window (Codex)") .. "\n",
+        "You can open the main window (your Codex) by typing " .. CT(COLORS.SUB_HIGHLIGHT, "/goldreaper") .. ", " .. CT(COLORS.SUB_HIGHLIGHT, "/gr") .. ", or by clicking the minimap icon.\n",
+        "  • " .. CT(COLORS.HIGHLIGHT, "Sorting:") .. " Click the buttons on the left sidebar to sort your farm spots by name, kills, or total value.\n",
+        "  • " .. CT(COLORS.HIGHLIGHT, "Details View:") .. " Click the '?' button on any row to see a detailed breakdown of that farm spot, including which mobs you've killed and their last known coordinates.\n",
+        "  • " .. CT(COLORS.HIGHLIGHT, "Map Pin:") .. " In the details view, click 'Show on Map' to place a pin on your world map at the last recorded kill location for that mob.\n\n",
+        CT(COLORS.SECTION_TITLE, "Minimap Icon Controls") .. "\n",
+        "  • " .. CT(COLORS.HIGHLIGHT, "Zone Reaper Image:") .. " Ctrl+Right-click to toggle the reaper image when changing zones. Status: " .. statusText .. "\n\n",
+        CT(COLORS.SECTION_TITLE, "Data Management") .. "\n",
+        "  • " .. CT(COLORS.HIGHLIGHT, "Delete Codex:") .. " This button will permanently wipe all of your saved farming data.\n\n",
+        CT(COLORS.SECTION_TITLE, "Feedback & Support") .. "\n",
+        "If you encounter any bugs or have suggestions, please reach out. Your support helps keep the project going!\n\n",
+        CT(COLORS.SECTION_TITLE, "Creator") .. "\n",
+        "GoldReaper was created by Clint Seewald (CS&A-Software)."
+    }
+    return table.concat(textParts, "")
+end
+
+-- New function to update the info window's text, called when the setting changes or the window is shown.
+function Popups:UpdateInfoWindowText()
+    if not Popups.InfoWindow then return end
+    local fs = _G["GoldReaperInfoFontString"]
+    if fs then
+        fs:SetText(BuildInfoWindowText())
+    end
+end
+
 -- Creates the main info window for the addon
 function Popups:CreateInfoWindow()
     if Popups.InfoWindow then return end
@@ -35,7 +72,7 @@ function Popups:CreateInfoWindow()
     iw:SetFrameLevel(addon.MainWindow.frame and (addon.MainWindow.frame:GetFrameLevel() or 5) + 5 or 10)
     iw.TitleText:SetText("GoldReaper Info")
     iw:SetMovable(true)
-    iw:EnableMouse(true) -- FIX: Enabled mouse input to allow dragging.
+    iw:EnableMouse(true)
     iw:RegisterForDrag("LeftButton")
     iw:SetScript("OnDragStart", function(self) self:StartMoving() end)
     iw:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
@@ -56,29 +93,7 @@ function Popups:CreateInfoWindow()
     fs:SetJustifyH("LEFT")
     fs:SetJustifyV("TOP")
     
-    local textParts = {
-        CT(COLORS.SECTION_TITLE, "Welcome to GoldReaper!") .. "\n",
-        "This addon is a lightweight tool designed to track your farming efficiency by recording kills, coin drops, and the vendor value of looted items for every farm spot you visit.\n\n",
-        CT(COLORS.SECTION_TITLE, "How It Works") .. "\n",
-        "GoldReaper automatically detects when you enter a new subzone and begins tracking your activity. It records:\n",
-        "  • " .. CT(COLORS.HIGHLIGHT, "Kills:") .. " Every time you defeat an enemy.\n",
-        "  • " .. CT(COLORS.HIGHLIGHT, "Coin:") .. " All gold, silver, and copper looted.\n",
-        "  • " .. CT(COLORS.HIGHLIGHT, "Loot Value:") .. " The total vendor sell price of all items you loot.\n\n",
-        CT(COLORS.SECTION_TITLE, "The Main Window (Codex)") .. "\n",
-        "You can open the main window (your Codex) by typing " .. CT(COLORS.SUB_HIGHLIGHT, "/goldreaper") .. ", " .. CT(COLORS.SUB_HIGHLIGHT, "/gr") .. ", or by clicking the minimap icon.\n",
-        "  • " .. CT(COLORS.HIGHLIGHT, "Sorting:") .. " Click the buttons on the left sidebar to sort your farm spots by name, kills, or total value.\n",
-        "  • " .. CT(COLORS.HIGHLIGHT, "Details View:") .. " Click the '?' button on any row to see a detailed breakdown of that farm spot, including which mobs you've killed and their last known coordinates.\n",
-        "  • " .. CT(COLORS.HIGHLIGHT, "Map Pin:") .. " In the details view, click 'Show on Map' to place a pin on your world map at the last recorded kill location for that mob.\n\n",
-        CT(COLORS.SECTION_TITLE, "Data Management") .. "\n",
-        "  • " .. CT(COLORS.HIGHLIGHT, "Delete Codex:") .. " This button will permanently wipe all of your saved farming data.\n\n",
-        CT(COLORS.SECTION_TITLE, "Feedback & Support") .. "\n",
-        "If you encounter any bugs or have suggestions, please reach out. Your support helps keep the project going!\n\n",
-        -- FIX: Added creator credit line.
-        CT(COLORS.SECTION_TITLE, "Creator") .. "\n",
-        "GoldReaper was created by Clint Seewald (CS&A-Software)."
-    }
-    
-    fs:SetText(table.concat(textParts, ""))
+    fs:SetText(BuildInfoWindowText())
     
     C_Timer.After(0.05, function()
         if fs and child and scroll then
@@ -98,6 +113,8 @@ function Popups:ShowInfoWindow()
     Popups.InfoWindow:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     Popups.InfoWindow:Show()
     Popups.InfoWindow:Raise()
+    -- Ensure the text is up-to-date whenever the window is shown.
+    Popups:UpdateInfoWindowText()
 end
 
 function Popups:HideInfoWindow()
@@ -116,10 +133,9 @@ function Popups:CreateSupportWindow()
     sw:SetSize(SUPPORT_WINDOW_WIDTH, SUPPORT_WINDOW_HEIGHT)
     sw:SetFrameStrata("DIALOG")
     sw:SetFrameLevel(addon.MainWindow.frame and (addon.MainWindow.frame:GetFrameLevel() or 5) + 5 or 10)
-    -- FIX: Changed window title.
     sw.TitleText:SetText("Community & Bug Reports")
     sw:SetMovable(true)
-    sw:EnableMouse(true) -- FIX: Enabled mouse input to allow dragging.
+    sw:EnableMouse(true)
     sw:RegisterForDrag("LeftButton")
     sw:SetScript("OnDragStart", function(self) self:StartMoving() end)
     sw:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
@@ -137,7 +153,6 @@ function Popups:CreateSupportWindow()
     messageFS:SetJustifyH("CENTER")
     messageFS:SetJustifyV("TOP")
     messageFS:SetTextColor(1, 0.82, 0) -- Gold color
-    -- FIX: Updated the text to reflect the new purpose of the window.
     messageFS:SetText("Join the community to chat, get help, and report bugs! Signing up is free, and your feedback is crucial for improving the addon. If you wish to support development, donations are gratefully accepted as an option.")
 
     local linkBox = CreateFrame("EditBox", "GoldReaperSupportLinkBox", sw, "InputBoxTemplate")
@@ -174,7 +189,6 @@ function Popups:ToggleSupportWindow()
     if not Popups.SupportWindow or not Popups.SupportWindow:IsShown() then Popups:ShowSupportWindow() else Popups:HideSupportWindow() end
 end
 
--- FIX: Renamed from OnInitialize to CreatePopups
 function Popups:CreatePopups()
     Popups:CreateInfoWindow()
     Popups:CreateSupportWindow()
