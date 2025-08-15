@@ -19,7 +19,7 @@ function addon:InitializeModules()
     addon.MainWindow:OnInitialize()
     addon.DeleteCodexButton:OnInitialize()
     addon.MiniMapIcon:OnInitialize()
-    print("GoldReaper v1.0: Modules Initialized")
+    print("GoldReaper v1.0.1: Modules Initialized")
     
     isInitialized = true
 end

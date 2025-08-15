@@ -255,7 +255,7 @@ function MainWindow:OnInitialize()
     -- DIRECTIVE: Reduce TSM window width by 168px
     local windowWidth = tsmIsAvailable and 1282 or 1100
     MainWindow.frame = CreateFrame("Frame", "GoldReaperMainWindow", UIParent, "BasicFrameTemplate")
-    MainWindow.frame.TitleText:SetText("GoldReaper - v1.0")
+    MainWindow.frame.TitleText:SetText("GoldReaper - v1.0.1")
     -- DIRECTIVE: Reduce window height by 30px
     MainWindow.frame:SetSize(windowWidth, 570); MainWindow.frame:SetPoint("CENTER")
     MainWindow.frame:SetMovable(true); MainWindow.frame:EnableMouse(true); MainWindow.frame:RegisterForDrag("LeftButton"); MainWindow.frame:SetScript("OnDragStart", MainWindow.frame.StartMoving); MainWindow.frame:SetScript("OnDragStop", MainWindow.frame.StopMovingOrSizing)
@@ -269,7 +269,7 @@ function MainWindow:OnInitialize()
     local searchBox = CreateFrame("EditBox", "GoldReaperSearchBox", sidebar, "SearchBoxTemplate"); searchBox:SetSize(170, 25); searchBox:SetPoint("TOPLEFT", 15, -10); searchBox:SetAutoFocus(false); searchBox.Instructions:SetText("Search..."); searchBox:SetScript("OnTextChanged", MainWindow.UpdateDisplay); searchBox:SetScript("OnEditFocusGained", function(self) self.Instructions:Hide() end); searchBox:SetScript("OnEditFocusLost", function(self) if self:GetText() == "" then self.Instructions:Show() end end)
     
     local infoButton = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate"); infoButton:SetSize(180, 25); infoButton:SetPoint("TOPLEFT", searchBox, "BOTTOMLEFT", -5, -5); infoButton:SetText("GoldReaper Info"); infoButton:SetScript("OnClick", function() addon:ToggleInfoWindow() end)
-    local supportButton = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate"); supportButton:SetSize(180, 25); supportButton:SetPoint("TOPLEFT", infoButton, "BOTTOMLEFT", 0, -5); supportButton:SetText("Community & Bug Reports"); supportButton:SetScript("OnClick", function() addon:ToggleSupportWindow() end)
+    local supportButton = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate"); supportButton:SetSize(180, 25); supportButton:SetPoint("TOPLEFT", infoButton, "BOTTOMLEFT", 0, -5); supportButton:SetText("Support & Community"); supportButton:SetScript("OnClick", function() addon:ToggleSupportWindow() end)
     
     local toggleMinimapButton = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate")
     toggleMinimapButton:SetSize(180, 25)
