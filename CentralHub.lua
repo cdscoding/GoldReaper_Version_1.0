@@ -1,6 +1,6 @@
 -- GoldReaper Addon
 -- Author: Clint Seewald (CS&A-Software)
--- Version: 1.0
+-- Version: 1.0.2
 -- Interface: 110200
 
 -- Initialize the main addon table.
@@ -19,7 +19,8 @@ function addon:InitializeModules()
     addon.MainWindow:OnInitialize()
     addon.DeleteCodexButton:OnInitialize()
     addon.MiniMapIcon:OnInitialize()
-    print("GoldReaper v1.0.1: Modules Initialized")
+    addon.Welcome:OnInitialize() -- Initialize the new Welcome module
+    print("GoldReaper v1.0.2: Modules Initialized")
     
     isInitialized = true
 end
@@ -33,6 +34,10 @@ function addon:OnVariablesLoaded()
     GoldReaperDB.settings = GoldReaperDB.settings or {}
     if GoldReaperDB.settings.showZoneReaper == nil then
         GoldReaperDB.settings.showZoneReaper = true -- Default to enabled
+    end
+    -- New setting for the welcome window
+    if GoldReaperDB.settings.showWelcomeWindow == nil then
+        GoldReaperDB.settings.showWelcomeWindow = true
     end
     -- Set a default value for the TSM flag. It will be properly checked later.
     addon.tsmIsAvailable = false
@@ -124,6 +129,15 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
                 end
             end
         end)
+        
+        -- Show welcome window on first login or after data wipe
+        if GoldReaperDB.settings.showWelcomeWindow then
+            C_Timer.After(3, function() -- A small delay to not be too intrusive
+                if addon.Welcome and addon.Welcome.ShowWindow then
+                    addon.Welcome:ShowWindow()
+                end
+            end)
+        end
         
         -- Unregister the event so this only runs once per login.
         self:UnregisterEvent("PLAYER_ENTERING_WORLD")
@@ -235,6 +249,8 @@ end
 -- Wipes all data from the codex.
 function addon:WipeCodex()
     GoldReaperDB.farmSpots = {}
+    -- Also reset the welcome window setting so it shows on next login
+    GoldReaperDB.settings.showWelcomeWindow = true
     print("GoldReaper: Your codex has been wiped clean.")
     if addon.MainWindow and addon.MainWindow.IsShown and addon.MainWindow:IsShown() then
         addon.MainWindow:UpdateDisplay()
@@ -310,8 +326,8 @@ function addon:ToggleInfoWindow()
     end
 end
 
-function addon:ToggleSupportWindow()
-    if addon.Popups and addon.Popups.ToggleSupportWindow then
-        addon.Popups:ToggleSupportWindow()
+function addon:ToggleWelcomeWindow()
+    if addon.Welcome and addon.Welcome.ToggleWindow then
+        addon.Welcome:ToggleWindow()
     end
 end
