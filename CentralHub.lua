@@ -1,6 +1,6 @@
 -- GoldReaper Addon
 -- Author: Clint Seewald (CS&A-Software)
--- Version: 1.0.2
+-- Version: 1.0.3
 -- Interface: 110200
 
 -- Initialize the main addon table.
@@ -20,7 +20,7 @@ function addon:InitializeModules()
     addon.DeleteCodexButton:OnInitialize()
     addon.MiniMapIcon:OnInitialize()
     addon.Welcome:OnInitialize() -- Initialize the new Welcome module
-    print("GoldReaper v1.0.2: Modules Initialized")
+    print("GoldReaper v1.0.3: Modules Initialized")
     
     isInitialized = true
 end
@@ -143,6 +143,13 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         self:UnregisterEvent("PLAYER_ENTERING_WORLD")
     end
 end)
+
+-- Slash command handler to toggle the main window
+SlashCmdList["GOLDREAPER"] = function()
+    addon:ToggleMainWindow()
+end
+SLASH_GOLDREAPER1 = "/goldreaper"
+SLASH_GOLDREAPER2 = "/gr"
 
 -- New function to process kills as they happen.
 function addon:ProcessKill(killData)
