@@ -255,7 +255,7 @@ function MainWindow:OnInitialize()
     -- DIRECTIVE: Reduce TSM window width by 168px
     local windowWidth = tsmIsAvailable and 1282 or 1100
     MainWindow.frame = CreateFrame("Frame", "GoldReaperMainWindow", UIParent, "BasicFrameTemplate")
-    MainWindow.frame.TitleText:SetText("GoldReaper - v1.0.3")
+    MainWindow.frame.TitleText:SetText("GoldReaper - v1.0.4")
     -- DIRECTIVE: Reduce window height by 30px
     MainWindow.frame:SetSize(windowWidth, 570); MainWindow.frame:SetPoint("CENTER")
     MainWindow.frame:SetMovable(true); MainWindow.frame:EnableMouse(true); MainWindow.frame:RegisterForDrag("LeftButton"); MainWindow.frame:SetScript("OnDragStart", MainWindow.frame.StartMoving); MainWindow.frame:SetScript("OnDragStop", MainWindow.frame.StopMovingOrSizing)

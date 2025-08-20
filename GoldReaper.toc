@@ -1,7 +1,7 @@
 ## Interface: 110200
 ## Title: GoldReaper
 ## Author: Clint Seewald (CS&A-Software)
-## Version: 1.0.3
+## Version: 1.0.4
 ## Notes: Tracks your total kills, coin, and item vendor value per farming spot, helping you uncover the most lucrative raw gold locations.
 ## DefaultState: enabled
 ## IconTexture: Interface\Icons\inv_misc_bone_humanskull_02

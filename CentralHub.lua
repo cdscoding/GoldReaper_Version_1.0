@@ -1,6 +1,6 @@
 -- GoldReaper Addon
 -- Author: Clint Seewald (CS&A-Software)
--- Version: 1.0.3
+-- Version: 1.0.4
 -- Interface: 110200
 
 -- Initialize the main addon table.
@@ -20,7 +20,7 @@ function addon:InitializeModules()
     addon.DeleteCodexButton:OnInitialize()
     addon.MiniMapIcon:OnInitialize()
     addon.Welcome:OnInitialize() -- Initialize the new Welcome module
-    print("GoldReaper v1.0.3: Modules Initialized")
+    print("GoldReaper v1.0.4: Modules Initialized")
     
     isInitialized = true
 end

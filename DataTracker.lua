@@ -6,22 +6,21 @@ local addon = GoldReaper
 addon.DataTracker = {}
 local DataTracker = addon.DataTracker
 
--- Initialize as nil to clearly represent when no loot session is active.
-local currentLootSession = nil
+-- Watched units for kill tracking
 local watchedNameplates = {}
 local eventFrame
-local pendingLootSession = nil
-local lootProcessTimer = nil
 
 -- This function is called from CentralHub.lua during addon initialization.
 function DataTracker:OnInitialize()
     eventFrame = CreateFrame("Frame")
     
+    -- Events for tracking kills
     eventFrame:RegisterEvent("NAME_PLATE_UNIT_ADDED")
     eventFrame:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
     eventFrame:RegisterEvent("UNIT_HEALTH")
-    eventFrame:RegisterEvent("LOOT_OPENED")
-    eventFrame:RegisterEvent("LOOT_CLOSED")
+    
+    -- Events for tracking loot (changed from LOOT_OPENED/CLOSED for reliability)
+    eventFrame:RegisterEvent("CHAT_MSG_LOOT")
     eventFrame:RegisterEvent("CHAT_MSG_MONEY")
 
     eventFrame:SetScript("OnEvent", DataTracker.OnEvent)
@@ -81,64 +80,72 @@ function DataTracker:OnUnitHealth(unitId)
     end
 end
 
--- When a loot window is opened, start a new loot session.
-function DataTracker:OnLootOpened(isFromItem)
-    if GetNumLootItems() == 0 and not IsFishingLoot() then return end
+-- When an item is looted, process its value from the chat log message.
+function DataTracker:OnLootReceived(message)
+    -- First, try to get the item link directly. This works for most items.
+    local itemLink = string.match(message, "(|c%x+|Hitem:%d+:.-|h%[.-%]|h|r)")
 
-    -- Start a new session.
-    currentLootSession = {
-        coin = 0,
-        lootValue = 0,
-        tsmValues = nil
-    }
-    
+    -- If no link is found (common for gray/junk items), fall back to parsing the name.
+    if not itemLink then
+        local itemName = string.match(message, "%[(.-)%]")
+        if itemName then
+            -- Use the item name to get its link, which contains all the necessary data.
+            _, itemLink = GetItemInfo(itemName)
+        end
+    end
+
+    -- If we still don't have a link after both attempts, we can't process it.
+    if not itemLink then return end
+
+    -- The quantity can also be parsed from the message string (e.g., "...x5.")
+    local quantity = tonumber(string.match(message, "x(%d+)")) or 1
+
     local totalVendorValue = 0
     local tsmValues = {}
 
-    for i = 1, GetNumLootItems() do
-        local itemLink = GetLootSlotLink(i)
-        if itemLink then
-            local _, _, quantity = GetLootSlotInfo(i)
-            quantity = quantity or 1
-            
-            local _, _, _, _, _, _, _, _, _, _, sellPrice = GetItemInfo(itemLink)
-            if sellPrice and sellPrice > 0 then
-                totalVendorValue = totalVendorValue + (sellPrice * quantity)
-            end
+    local _, _, _, _, _, _, _, _, _, _, sellPrice = GetItemInfo(itemLink)
+    if sellPrice and sellPrice > 0 then
+        totalVendorValue = totalVendorValue + (sellPrice * quantity)
+    end
 
-            if addon.tsmIsAvailable then
-                -- FIX: Extract item ID and convert to TSM format
-                local itemId = itemLink:match("item:(%d+)")
-                if itemId then
-                    local tsmItemString = "i:" .. itemId
-                    local dbRegionSaleAvg = addon:GetTSMItemValue(tsmItemString, "DBRegionSaleAvg")
-                    if dbRegionSaleAvg and dbRegionSaleAvg > 0 then
-                        tsmValues.DBRegionSaleAvg = (tsmValues.DBRegionSaleAvg or 0) + (dbRegionSaleAvg * quantity)
-                    end
-                end
+    if addon.tsmIsAvailable then
+        local itemId = itemLink:match("item:(%d+)")
+        if itemId then
+            local tsmItemString = "i:" .. itemId
+            local dbRegionSaleAvg = addon:GetTSMItemValue(tsmItemString, "DBRegionSaleAvg")
+            if dbRegionSaleAvg and dbRegionSaleAvg > 0 then
+                tsmValues.DBRegionSaleAvg = (tsmValues.DBRegionSaleAvg or 0) + (dbRegionSaleAvg * quantity)
             end
         end
     end
-    currentLootSession.lootValue = totalVendorValue
-    if next(tsmValues) then
-        currentLootSession.tsmValues = tsmValues
+
+    -- If the item has no value, don't record anything.
+    if totalVendorValue == 0 and not next(tsmValues) then
+        return
     end
+
+    -- Get current location info
+    local uiMapID = C_Map.GetBestMapForUnit("player")
+    if not uiMapID then return end
+
+    local zoneName = GetSubZoneText()
+    if zoneName == "" then zoneName = GetZoneText() end
+
+    -- Package the data for this single loot event and send it for processing.
+    local lootData = {
+        zoneKey = uiMapID .. "::" .. zoneName,
+        zoneName = zoneName,
+        coin = 0,
+        lootValue = totalVendorValue,
+        tsmValues = next(tsmValues) and tsmValues or nil
+    }
+    
+    addon:ProcessLootEvent(lootData)
 end
 
--- When money is looted, add it to our session total.
+-- When money is looted, process it from the chat log message.
 function DataTracker:OnMoneyLooted(message)
-    local targetSession = pendingLootSession or currentLootSession
-    
-    if not targetSession then
-        pendingLootSession = { coin = 0, lootValue = 0 }
-        targetSession = pendingLootSession
-        
-        if lootProcessTimer then lootProcessTimer:Cancel() end
-        lootProcessTimer = C_Timer.After(0.5, function()
-            DataTracker:ProcessPendingLoot()
-        end)
-    end
-
+    -- Simplified to process money immediately without session management.
     local totalCopper = 0
     local goldMatch = message:match("([%d,]+)%s+[Gg]old")
     if goldMatch then 
@@ -157,77 +164,38 @@ function DataTracker:OnMoneyLooted(message)
     end
 
     if totalCopper > 0 then
-        targetSession.coin = (targetSession.coin or 0) + totalCopper
+        local uiMapID = C_Map.GetBestMapForUnit("player")
+        if not uiMapID then return end
+
+        local zoneName = GetSubZoneText()
+        if zoneName == "" then zoneName = GetZoneText() end
+        
+        local lootData = {
+            zoneKey = uiMapID .. "::" .. zoneName,
+            zoneName = zoneName,
+            coin = totalCopper,
+            lootValue = 0,
+            tsmValues = nil
+        }
+        
+        addon:ProcessLootEvent(lootData)
     end
-end
-
--- Modified OnLootClosed - now delays processing to wait for money messages
-function DataTracker:OnLootClosed()
-    if not currentLootSession then return end
-    
-    pendingLootSession = {
-        coin = currentLootSession.coin or 0,
-        lootValue = currentLootSession.lootValue or 0,
-        tsmValues = currentLootSession.tsmValues
-    }
-    
-    currentLootSession = nil
-    
-    if lootProcessTimer then lootProcessTimer:Cancel() end
-    
-    lootProcessTimer = C_Timer.After(0.5, function()
-        DataTracker:ProcessPendingLoot()
-    end)
-end
-
--- New function to process the pending loot after delay
-function DataTracker:ProcessPendingLoot()
-    if not pendingLootSession then return end
-    
-    if pendingLootSession.coin == 0 and pendingLootSession.lootValue == 0 and not pendingLootSession.tsmValues then
-        pendingLootSession = nil
-        return
-    end
-
-    local uiMapID = C_Map.GetBestMapForUnit("player")
-    if not uiMapID then
-        pendingLootSession = nil
-        return
-    end
-
-    local zoneName = GetSubZoneText()
-    if zoneName == "" then zoneName = GetZoneText() end
-    
-    local lootData = {
-        zoneKey = uiMapID .. "::" .. zoneName,
-        zoneName = zoneName,
-        coin = pendingLootSession.coin,
-        lootValue = pendingLootSession.lootValue,
-        tsmValues = pendingLootSession.tsmValues
-    }
-    
-    addon:ProcessLootEvent(lootData)
-
-    pendingLootSession = nil
-    lootProcessTimer = nil
 end
 
 -- The main event handler for this module.
 function DataTracker.OnEvent(self, event, ...)
-    local unitId = ...
-    
     if event == "NAME_PLATE_UNIT_ADDED" then
-        DataTracker:OnNamePlateUnitAdded(unitId)
+        DataTracker:OnNamePlateUnitAdded(...)
     elseif event == "NAME_PLATE_UNIT_REMOVED" then
-        DataTracker:OnNamePlateUnitRemoved(unitId)
+        DataTracker:OnNamePlateUnitRemoved(...)
     elseif event == "UNIT_HEALTH" then
+        local unitId = ...
         if watchedNameplates[unitId] then
             DataTracker:OnUnitHealth(unitId)
         end
-    elseif event == "LOOT_OPENED" then
-        DataTracker:OnLootOpened(...)
-    elseif event == "LOOT_CLOSED" then
-        DataTracker:OnLootClosed(...)
+    elseif event == "CHAT_MSG_LOOT" then
+        -- The first argument is the message string.
+        DataTracker:OnLootReceived(...)
     elseif event == "CHAT_MSG_MONEY" then
         DataTracker:OnMoneyLooted(...)
     end
