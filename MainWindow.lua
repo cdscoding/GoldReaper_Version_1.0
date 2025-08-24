@@ -7,7 +7,8 @@ addon.MainWindow = {}
 local MainWindow = addon.MainWindow
 
 local scrollFrame
-local detailsFrame -- New frame for the details window
+local detailsFrame -- Frame for the mob details window
+local itemsFrame -- New frame for the items window
 local displayData = {} 
 local columnDefinitions = {}
 local sortButtons = {}
@@ -112,7 +113,7 @@ function MainWindow:UpdateList(data)
         end
 
         local detailsButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        detailsButton:SetSize(20, 20)
+        detailsButton:SetSize(16, 16) -- Reduced size by 20%
         detailsButton:SetText("?")
         detailsButton:SetPoint("LEFT", nameCell, "RIGHT", 5, 0)
         detailsButton:SetScript("OnClick", function()
@@ -120,6 +121,14 @@ function MainWindow:UpdateList(data)
             if spotDetails then
                 MainWindow:ShowDetails(spotDetails)
             end
+        end)
+
+        local itemsButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+        itemsButton:SetSize(16, 16) -- Reduced size by 20%
+        itemsButton:SetText("I")
+        itemsButton:SetPoint("LEFT", detailsButton, "RIGHT", 2, 0)
+        itemsButton:SetScript("OnClick", function()
+            MainWindow:ShowItems(rowData)
         end)
 
         totalHeight = totalHeight + ROW_HEIGHT
@@ -248,6 +257,100 @@ function MainWindow:ShowDetails(spotData)
     detailsFrame:Show()
 end
 
+-- Function to show the items window
+function MainWindow:ShowItems(spotData)
+    if not itemsFrame then return end
+    itemsFrame.TitleText:SetText("Looted Items: " .. spotData.name)
+
+    local scroll = itemsFrame.ScrollFrame
+    if scroll.ScrollChild then scroll.ScrollChild:Hide() end
+    local scrollChild = CreateFrame("Frame", nil, scroll)
+    scrollChild:SetSize(scroll:GetWidth(), 1)
+    scroll:SetScrollChild(scrollChild)
+    scroll.ScrollChild = scrollChild
+
+    -- Create Headers
+    local headerFrame = CreateFrame("Frame", nil, scrollChild)
+    headerFrame:SetSize(scrollChild:GetWidth(), 25)
+    headerFrame:SetPoint("TOPLEFT")
+    local itemHeader = headerFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalMed2"); itemHeader:SetPoint("LEFT", 10, 0); itemHeader:SetText("Item")
+    local qtyHeader = headerFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalMed2"); qtyHeader:SetPoint("LEFT", 220, 0); qtyHeader:SetText("Qty")
+    local vendorHeader = headerFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalMed2"); vendorHeader:SetPoint("LEFT", 280, 0); vendorHeader:SetText("Vendor Value")
+    if tsmIsAvailable then
+        local tsmHeader = headerFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalMed2"); tsmHeader:SetPoint("LEFT", 420, 0); tsmHeader:SetText("DBRegionSaleAvg")
+    end
+
+    -- Create Dividers
+    if itemsFrame.dividers then
+        for _, div in ipairs(itemsFrame.dividers) do
+            div:Hide()
+        end
+    end
+    itemsFrame.dividers = {}
+
+    local divider1 = scroll:CreateTexture(nil, "ARTWORK"); divider1:SetPoint("TOPLEFT", 210, 0); divider1:SetSize(1, scroll:GetHeight()); table.insert(itemsFrame.dividers, divider1)
+    local divider2 = scroll:CreateTexture(nil, "ARTWORK"); divider2:SetPoint("TOPLEFT", 270, 0); divider2:SetSize(1, scroll:GetHeight()); table.insert(itemsFrame.dividers, divider2)
+    if tsmIsAvailable then
+        local divider3 = scroll:CreateTexture(nil, "ARTWORK"); divider3:SetPoint("TOPLEFT", 410, 0); divider3:SetSize(1, scroll:GetHeight()); table.insert(itemsFrame.dividers, divider3)
+    end
+    for _, div in ipairs(itemsFrame.dividers) do
+        div:SetColorTexture(DIVIDER_COLOR.r, DIVIDER_COLOR.g, DIVIDER_COLOR.b, DIVIDER_COLOR.a)
+    end
+
+    local totalHeight = 25
+    local items = addon:GetItemsForFarmSpot(spotData.zoneKey)
+    
+    local itemList = {}
+    for name, data in pairs(items) do
+        table.insert(itemList, {name = name, data = data})
+    end
+    table.sort(itemList, function(a, b) return a.name < b.name end)
+
+    for i, itemEntry in ipairs(itemList) do
+        local itemName = itemEntry.name
+        local itemData = itemEntry.data
+        
+        local row = CreateFrame("Frame", nil, scrollChild)
+        row:SetSize(scrollChild:GetWidth(), ROW_HEIGHT)
+        row:SetPoint("TOPLEFT", 0, -totalHeight)
+        local bg = row:CreateTexture(nil, "BACKGROUND"); bg:SetAllPoints(true); bg:SetColorTexture(i % 2 == 0 and EVEN_ROW_COLOR.r or ODD_ROW_COLOR.r, i % 2 == 0 and EVEN_ROW_COLOR.g or ODD_ROW_COLOR.g, i % 2 == 0 and EVEN_ROW_COLOR.b or ODD_ROW_COLOR.b, i % 2 == 0 and EVEN_ROW_COLOR.a or ODD_ROW_COLOR.a)
+
+        -- Create a frame to handle mouseover for the item name
+        local nameFrame = CreateFrame("Frame", nil, row)
+        nameFrame:SetPoint("TOPLEFT", 0, 0)
+        nameFrame:SetPoint("BOTTOMRIGHT", row, "TOPLEFT", 210, -ROW_HEIGHT)
+
+        local nameText = nameFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        nameText:SetPoint("LEFT", 10, 0)
+        nameText:SetJustifyH("LEFT")
+        nameText:SetWidth(190) -- Give it some padding from the divider
+        nameText:SetText(itemData.itemLink or itemName)
+        
+        nameFrame:SetScript("OnEnter", function(self)
+            if itemData.itemLink then
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:SetHyperlink(itemData.itemLink)
+                GameTooltip:Show()
+            end
+        end)
+
+        nameFrame:SetScript("OnLeave", function(self)
+            GameTooltip:Hide()
+        end)
+
+        local qtyText = row:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall"); qtyText:SetPoint("LEFT", 235, 0); qtyText:SetText(itemData.quantity)
+        local vendorText = row:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall"); vendorText:SetPoint("LEFT", 280, 0); vendorText:SetText(FormatMoney(itemData.vendorPrice * itemData.quantity))
+        if tsmIsAvailable then
+            local tsmText = row:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall"); tsmText:SetPoint("LEFT", 420, 0); tsmText:SetText(FormatMoney(itemData.tsmPrice * itemData.quantity))
+        end
+        
+        totalHeight = totalHeight + ROW_HEIGHT
+    end
+
+    scrollChild:SetHeight(totalHeight + 10)
+    itemsFrame:Show()
+end
+
 function MainWindow:OnInitialize()
     -- Use the global flag set in CentralHub, which is now guaranteed to be correct.
     tsmIsAvailable = addon.tsmIsAvailable
@@ -255,9 +358,10 @@ function MainWindow:OnInitialize()
     -- DIRECTIVE: Reduce TSM window width by 168px
     local windowWidth = tsmIsAvailable and 1282 or 1100
     MainWindow.frame = CreateFrame("Frame", "GoldReaperMainWindow", UIParent, "BasicFrameTemplate")
-    MainWindow.frame.TitleText:SetText("GoldReaper - v1.0.4")
+    MainWindow.frame.TitleText:SetText("GoldReaper - v1.0.7")
     -- DIRECTIVE: Reduce window height by 30px
     MainWindow.frame:SetSize(windowWidth, 570); MainWindow.frame:SetPoint("CENTER")
+    MainWindow.frame:SetFrameStrata("HIGH") -- Set strata to be above most default UI but below dialogs
     MainWindow.frame:SetMovable(true); MainWindow.frame:EnableMouse(true); MainWindow.frame:RegisterForDrag("LeftButton"); MainWindow.frame:SetScript("OnDragStart", MainWindow.frame.StartMoving); MainWindow.frame:SetScript("OnDragStop", MainWindow.frame.StopMovingOrSizing)
     
     local sidebar = CreateFrame("Frame", nil, MainWindow.frame, "BackdropTemplate")
@@ -336,7 +440,7 @@ function MainWindow:OnInitialize()
     end
     
     detailsFrame = CreateFrame("Frame", "GoldReaperDetailsWindow", UIParent, "BasicFrameTemplate")
-    detailsFrame:SetSize(600, 500); detailsFrame:SetPoint("CENTER"); detailsFrame:SetMovable(true); detailsFrame:EnableMouse(true); detailsFrame:RegisterForDrag("LeftButton"); detailsFrame:SetScript("OnDragStart", detailsFrame.StartMoving); detailsFrame:SetScript("OnDragStop", detailsFrame.StopMovingOrSizing); detailsFrame:SetFrameStrata("HIGH"); detailsFrame:Hide()
+    detailsFrame:SetSize(600, 500); detailsFrame:SetPoint("CENTER"); detailsFrame:SetMovable(true); detailsFrame:EnableMouse(true); detailsFrame:RegisterForDrag("LeftButton"); detailsFrame:SetScript("OnDragStart", detailsFrame.StartMoving); detailsFrame:SetScript("OnDragStop", detailsFrame.StopMovingOrSizing); detailsFrame:SetFrameStrata("DIALOG"); detailsFrame:Hide()
     detailsFrame.TitleText:SetText("Details")
     detailsFrame.CloseButton:SetScript("OnClick", function() 
         if activeMapPinButton then
@@ -349,6 +453,14 @@ function MainWindow:OnInitialize()
     end)
     
     detailsFrame.ScrollFrame = CreateFrame("ScrollFrame", "GoldReaperDetailsScrollFrame", detailsFrame, "UIPanelScrollFrameTemplate"); detailsFrame.ScrollFrame:SetPoint("TOPLEFT", 8, -30); detailsFrame.ScrollFrame:SetPoint("BOTTOMRIGHT", -28, 8)
+
+    -- Create the new Items window
+    itemsFrame = CreateFrame("Frame", "GoldReaperItemsWindow", UIParent, "BasicFrameTemplate")
+    local itemsFrameWidth = tsmIsAvailable and 600 or 450
+    itemsFrame:SetSize(itemsFrameWidth, 500); itemsFrame:SetPoint("CENTER"); itemsFrame:SetMovable(true); itemsFrame:EnableMouse(true); itemsFrame:RegisterForDrag("LeftButton"); itemsFrame:SetScript("OnDragStart", itemsFrame.StartMoving); itemsFrame:SetScript("OnDragStop", itemsFrame.StopMovingOrSizing); itemsFrame:SetFrameStrata("FULLSCREEN_DIALOG"); itemsFrame:Hide()
+    itemsFrame.TitleText:SetText("Items")
+    itemsFrame.CloseButton:SetScript("OnClick", function() itemsFrame:Hide() end)
+    itemsFrame.ScrollFrame = CreateFrame("ScrollFrame", "GoldReaperItemsScrollFrame", itemsFrame, "UIPanelScrollFrameTemplate"); itemsFrame.ScrollFrame:SetPoint("TOPLEFT", 8, -30); itemsFrame.ScrollFrame:SetPoint("BOTTOMRIGHT", -28, 8)
 
     customMapPin = CreateFrame("Button", "GoldReaperCustomMapPin", WorldMapFrame)
     customMapPin:SetSize(16, 16)
@@ -418,6 +530,7 @@ function MainWindow:Hide()
     if MainWindow.frame then 
         MainWindow.frame:Hide()
         if detailsFrame then detailsFrame:Hide() end
+        if itemsFrame then itemsFrame:Hide() end
         if addon.Popups then
             addon.Popups:HideInfoWindow()
         end

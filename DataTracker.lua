@@ -80,22 +80,126 @@ function DataTracker:OnUnitHealth(unitId)
     end
 end
 
+-- Helper function to process items that needed delayed cache lookup
+function DataTracker:ProcessDelayedItem(message, itemLink, quantity)
+    local totalVendorValue = 0
+    local tsmValues = {}
+
+    -- Get item info for vendor price and rarity
+    local itemName, _, itemRarity, _, _, _, _, _, _, _, sellPrice = GetItemInfo(itemLink)
+    
+    if sellPrice and sellPrice > 0 then
+        totalVendorValue = totalVendorValue + (sellPrice * quantity)
+    end
+
+    -- TSM Integration
+    local dbRegionSaleAvg = 0
+    if addon.tsmIsAvailable then
+        local itemId = itemLink:match("item:(%d+)")
+        if itemId and addon.GetTSMItemValue then
+            local tsmItemString = "i:" .. itemId
+            local tsmValue = addon:GetTSMItemValue(tsmItemString, "DBRegionSaleAvg")
+            if tsmValue and tsmValue > 0 then
+                tsmValues.DBRegionSaleAvg = tsmValue * quantity
+                dbRegionSaleAvg = tsmValue -- Store per-item value
+            end
+        end
+    end
+
+    -- If the item has value, record it
+    if totalVendorValue > 0 or next(tsmValues) then
+        local uiMapID = C_Map.GetBestMapForUnit("player")
+        if uiMapID then
+            local zoneName = GetSubZoneText()
+            if zoneName == "" then zoneName = GetZoneText() end
+
+            local itemData = {
+                itemLink = itemLink,
+                name = itemName,
+                quantity = quantity,
+                vendorPrice = sellPrice or 0,
+                tsmPrice = dbRegionSaleAvg
+            }
+
+            local lootData = {
+                zoneKey = uiMapID .. "::" .. zoneName,
+                zoneName = zoneName,
+                coin = 0,
+                lootValue = totalVendorValue,
+                tsmValues = next(tsmValues) and tsmValues or nil,
+                item = itemData
+            }
+            
+            addon:ProcessLootEvent(lootData)
+        end
+    end
+end
+
 -- When an item is looted, process its value from the chat log message.
 function DataTracker:OnLootReceived(message)
-    -- First, try to get the item link directly. This works for most items.
+    -- First, try multiple patterns to get the item link directly
     local itemLink = string.match(message, "(|c%x+|Hitem:%d+:.-|h%[.-%]|h|r)")
+    
+    -- If the first pattern failed, try a more permissive pattern
+    if not itemLink then
+        itemLink = string.match(message, "(|c.-|h%[.-%]|h|r)")
+    end
+    
+    -- Try an even more aggressive pattern for complex enchanted items
+    if not itemLink then
+        itemLink = string.match(message, "(|c.-|Hitem:.-|h%[.-%]|h|r)")
+    end
+    
+    -- If no link is found with pattern matching, try parsing the raw message
+    if not itemLink then
+        -- Try to find any hyperlink in the message
+        local linkStart = string.find(message, "|H")
+        local linkEnd = string.find(message, "|h", linkStart)
+        if linkStart and linkEnd then
+            -- Extract the full hyperlink structure
+            local fullLinkEnd = string.find(message, "|r", linkEnd)
+            if fullLinkEnd then
+                itemLink = string.sub(message, linkStart - 2, fullLinkEnd + 1) -- Include color codes
+            end
+        end
+    end
 
-    -- If no link is found (common for gray/junk items), fall back to parsing the name.
+    -- If still no link is found (common for gray/junk items), fall back to parsing the name.
     if not itemLink then
         local itemName = string.match(message, "%[(.-)%]")
         if itemName then
             -- Use the item name to get its link, which contains all the necessary data.
             _, itemLink = GetItemInfo(itemName)
+            
+            -- If GetItemInfo returns nil, the item might not be cached yet
+            if not itemLink then
+                -- Store the quantity for delayed processing
+                local currentQuantity = quantity
+                -- Try with a brief delay for cache population
+                C_Timer.After(0.2, function()
+                    local _, delayedLink = GetItemInfo(itemName)
+                    if delayedLink then
+                        -- Reprocess with the found link
+                        DataTracker:ProcessDelayedItem(message, delayedLink, currentQuantity)
+                    else
+                        -- Try one more time with a longer delay
+                        C_Timer.After(0.5, function()
+                            local _, finalLink = GetItemInfo(itemName)
+                            if finalLink then
+                                DataTracker:ProcessDelayedItem(message, finalLink, currentQuantity)
+                            end
+                        end)
+                    end
+                end)
+                return -- Exit early, delayed processing will handle it
+            end
         end
     end
 
     -- If we still don't have a link after both attempts, we can't process it.
-    if not itemLink then return end
+    if not itemLink then 
+        return 
+    end
 
     -- The quantity can also be parsed from the message string (e.g., "...x5.")
     local quantity = tonumber(string.match(message, "x(%d+)")) or 1
@@ -103,18 +207,28 @@ function DataTracker:OnLootReceived(message)
     local totalVendorValue = 0
     local tsmValues = {}
 
-    local _, _, _, _, _, _, _, _, _, _, sellPrice = GetItemInfo(itemLink)
+    -- Get item info for vendor price and rarity
+    local itemName, _, itemRarity, _, _, _, _, _, _, _, sellPrice = GetItemInfo(itemLink)
+    
     if sellPrice and sellPrice > 0 then
         totalVendorValue = totalVendorValue + (sellPrice * quantity)
     end
 
+    -- TSM Integration with debug logging
+    local dbRegionSaleAvg = 0 -- For individual item tracking
     if addon.tsmIsAvailable then
         local itemId = itemLink:match("item:(%d+)")
+        
         if itemId then
             local tsmItemString = "i:" .. itemId
-            local dbRegionSaleAvg = addon:GetTSMItemValue(tsmItemString, "DBRegionSaleAvg")
-            if dbRegionSaleAvg and dbRegionSaleAvg > 0 then
-                tsmValues.DBRegionSaleAvg = (tsmValues.DBRegionSaleAvg or 0) + (dbRegionSaleAvg * quantity)
+            
+            -- Check if GetTSMItemValue function exists
+            if addon.GetTSMItemValue then
+                local tsmValue = addon:GetTSMItemValue(tsmItemString, "DBRegionSaleAvg")
+                if tsmValue and tsmValue > 0 then
+                    tsmValues.DBRegionSaleAvg = (tsmValues.DBRegionSaleAvg or 0) + (tsmValue * quantity)
+                    dbRegionSaleAvg = tsmValue -- Store per-item value
+                end
             end
         end
     end
@@ -126,18 +240,29 @@ function DataTracker:OnLootReceived(message)
 
     -- Get current location info
     local uiMapID = C_Map.GetBestMapForUnit("player")
-    if not uiMapID then return end
+    if not uiMapID then 
+        return 
+    end
 
     local zoneName = GetSubZoneText()
     if zoneName == "" then zoneName = GetZoneText() end
 
     -- Package the data for this single loot event and send it for processing.
+    local itemData = {
+        itemLink = itemLink,
+        name = itemName,
+        quantity = quantity,
+        vendorPrice = sellPrice or 0,
+        tsmPrice = dbRegionSaleAvg
+    }
+    
     local lootData = {
         zoneKey = uiMapID .. "::" .. zoneName,
         zoneName = zoneName,
         coin = 0,
         lootValue = totalVendorValue,
-        tsmValues = next(tsmValues) and tsmValues or nil
+        tsmValues = next(tsmValues) and tsmValues or nil,
+        item = itemData
     }
     
     addon:ProcessLootEvent(lootData)
@@ -165,7 +290,9 @@ function DataTracker:OnMoneyLooted(message)
 
     if totalCopper > 0 then
         local uiMapID = C_Map.GetBestMapForUnit("player")
-        if not uiMapID then return end
+        if not uiMapID then 
+            return 
+        end
 
         local zoneName = GetSubZoneText()
         if zoneName == "" then zoneName = GetZoneText() end

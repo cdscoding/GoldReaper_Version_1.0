@@ -1,6 +1,6 @@
 -- GoldReaper Addon
 -- Author: Clint Seewald (CS&A-Software)
--- Version: 1.0.4
+-- Version: 1.0.7
 -- Interface: 110200
 
 -- Initialize the main addon table.
@@ -20,7 +20,7 @@ function addon:InitializeModules()
     addon.DeleteCodexButton:OnInitialize()
     addon.MiniMapIcon:OnInitialize()
     addon.Welcome:OnInitialize() -- Initialize the new Welcome module
-    print("GoldReaper v1.0.4: Modules Initialized")
+    print("GoldReaper v1.0.7: Modules Initialized")
     
     isInitialized = true
 end
@@ -30,11 +30,8 @@ function addon:OnVariablesLoaded()
     -- Initialize the SavedVariables database.
     GoldReaperDB = GoldReaperDB or {}
     GoldReaperDB.farmSpots = GoldReaperDB.farmSpots or {}
-    -- Initialize settings table and the new option for the zone reaper notification.
+    -- Initialize settings table.
     GoldReaperDB.settings = GoldReaperDB.settings or {}
-    if GoldReaperDB.settings.showZoneReaper == nil then
-        GoldReaperDB.settings.showZoneReaper = true -- Default to enabled
-    end
     -- New setting for the welcome window
     if GoldReaperDB.settings.showWelcomeWindow == nil then
         GoldReaperDB.settings.showWelcomeWindow = true
@@ -167,7 +164,8 @@ function addon:ProcessKill(killData)
             totalRegionSaleAvg = 0,
             totalValue = 0,
             firstFarmed = GetTime(),
-            mobBreakdown = {}
+            mobBreakdown = {},
+            items = {} -- Initialize items table
         }
         GoldReaperDB.farmSpots[killData.zoneKey] = farmSpot
     end
@@ -208,7 +206,8 @@ function addon:ProcessLootEvent(lootData)
             totalRegionSaleAvg = 0,
             totalValue = 0,
             firstFarmed = GetTime(),
-            mobBreakdown = {}
+            mobBreakdown = {},
+            items = {} -- Initialize items table
         }
         GoldReaperDB.farmSpots[lootData.zoneKey] = farmSpot
     end
@@ -224,6 +223,24 @@ function addon:ProcessLootEvent(lootData)
     farmSpot.totalValue = farmSpot.totalCoin + farmSpot.totalLootValue
     
     farmSpot.lastFarmed = GetTime()
+
+    -- New item tracking logic
+    if lootData.item and lootData.item.name then
+        farmSpot.items = farmSpot.items or {}
+        local item = lootData.item
+        local existingItem = farmSpot.items[item.name]
+
+        if existingItem then
+            existingItem.quantity = existingItem.quantity + item.quantity
+        else
+            farmSpot.items[item.name] = {
+                itemLink = item.itemLink,
+                quantity = item.quantity,
+                vendorPrice = item.vendorPrice, -- per-item price
+                tsmPrice = item.tsmPrice -- per-item price
+            }
+        end
+    end
 
     if addon.MainWindow and addon.MainWindow.IsShown and addon.MainWindow:IsShown() then
         addon.MainWindow:UpdateDisplay()
@@ -297,6 +314,15 @@ function addon:GetFarmSpotDetails(zoneKey)
     return GoldReaperDB.farmSpots[zoneKey]
 end
 
+-- New function to get item breakdown for a specific farm spot.
+function addon:GetItemsForFarmSpot(zoneKey)
+    local spot = GoldReaperDB.farmSpots[zoneKey]
+    if spot and spot.items then
+        return spot.items
+    end
+    return {}
+end
+
 -- Central function to toggle the main window's visibility.
 function addon:ToggleMainWindow()
     if addon.MainWindow and addon.MainWindow.Toggle then
@@ -308,21 +334,6 @@ end
 function addon:ToggleMinimapIcon()
     if addon.MiniMapIcon and addon.MiniMapIcon.ToggleIcon then
         addon.MiniMapIcon:ToggleIcon()
-    end
-end
-
--- New function to toggle the zone reaper picture notification.
-function addon:TogglePictureNotification()
-    GoldReaperDB.settings.showZoneReaper = not GoldReaperDB.settings.showZoneReaper
-    if GoldReaperDB.settings.showZoneReaper then
-        print("GoldReaper: Zone Reaper notification enabled.")
-    else
-        print("GoldReaper: Zone Reaper notification disabled.")
-    end
-    
-    -- Refresh the info window if it's currently open to reflect the new status.
-    if addon.Popups and addon.Popups.InfoWindow and addon.Popups.InfoWindow:IsShown() then
-        addon.Popups:UpdateInfoWindowText()
     end
 end
 

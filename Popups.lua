@@ -24,7 +24,6 @@ end
 
 -- Local helper function to build the dynamic text for the info window.
 local function BuildInfoWindowText()
-    local statusText = GoldReaperDB.settings.showZoneReaper and "|cff00ff00Enabled|r" or "|cffff0000Disabled|r"
     local textParts = {
         CT(COLORS.SECTION_TITLE, "Welcome to GoldReaper!") .. "\n",
         "This addon is a lightweight tool designed to track your farming efficiency by recording kills, coin drops, and the vendor value of looted items for every farm spot you visit.\n\n",
@@ -36,10 +35,9 @@ local function BuildInfoWindowText()
         CT(COLORS.SECTION_TITLE, "The Main Window (Codex)") .. "\n",
         "You can open the main window (your Codex) by typing " .. CT(COLORS.SUB_HIGHLIGHT, "/goldreaper") .. ", " .. CT(COLORS.SUB_HIGHLIGHT, "/gr") .. ", or by clicking the minimap icon.\n",
         "  • " .. CT(COLORS.HIGHLIGHT, "Sorting:") .. " Click the buttons on the left sidebar to sort your farm spots by name, kills, or total value.\n",
-        "  • " .. CT(COLORS.HIGHLIGHT, "Details View:") .. " Click the '?' button on any row to see a detailed breakdown of that farm spot, including which mobs you've killed and their last known coordinates.\n",
+        "  • " .. CT(COLORS.HIGHLIGHT, "Details View ('?'):") .. " Click the '?' button on any row to see a detailed breakdown of that farm spot, including which mobs you've killed and their last known coordinates.\n",
+        "  • " .. CT(COLORS.HIGHLIGHT, "Items View ('I'):") .. " Click the 'I' button to see a list of all items looted in that spot, their quantities, and their total vendor/TSM values.\n",
         "  • " .. CT(COLORS.HIGHLIGHT, "Map Pin:") .. " In the details view, click 'Show on Map' to place a pin on your world map at the last recorded kill location for that mob.\n\n",
-        CT(COLORS.SECTION_TITLE, "Minimap Icon Controls") .. "\n",
-        "  • " .. CT(COLORS.HIGHLIGHT, "Zone Reaper Image:") .. " Ctrl+Right-click to toggle the reaper image when changing zones. Status: " .. statusText .. "\n\n",
         CT(COLORS.SECTION_TITLE, "Data Management") .. "\n",
         "  • " .. CT(COLORS.HIGHLIGHT, "Delete Codex:") .. " This button will permanently wipe all of your saved farming data.\n\n",
         CT(COLORS.SECTION_TITLE, "Feedback & Support") .. "\n",

@@ -27,19 +27,12 @@ function MiniMapIcon:OnInitialize()
         OnClick = function(self, button)
             if button == "LeftButton" then
                 addon:ToggleMainWindow()
-            elseif button == "RightButton" and IsControlKeyDown() then
-                addon:TogglePictureNotification()
-            elseif button == "RightButton" and IsShiftKeyDown() then
-                LibDBIcon:Hide("GoldReaper")
-                print("GoldReaper minimap icon hidden. You can re-enable it from the main window.")
             end
         end,
         
         OnTooltipShow = function(tooltip)
             tooltip:AddLine("GoldReaper")
             tooltip:AddLine("Left-click to open the Codex.")
-            tooltip:AddLine("Shift + Right-click to hide this button.", 0.5, 0.5, 0.5)
-            tooltip:AddLine("Ctrl + Right-click to toggle the Zone Reaper.", 0.5, 0.5, 0.5)
         end
     })
 
